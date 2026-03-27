@@ -189,5 +189,39 @@ var vscodeTmpl = template.Must(template.New("vscode").Funcs(funcMap).Parse(
     // ---- Scrollbar ----
     "scrollbarSlider.background": "{{alpha .Palette.UI.Border 60}}",
     "scrollbarSlider.hoverBackground": "{{alpha .Palette.UI.Border 120}}",
-    "scrollbarSlider.activeBackground": "{{.Palette.UI.Accent}}"
+    "scrollbarSlider.activeBackground": "{{.Palette.UI.Accent}}",
+
+    // ---- Editor Highlights (tame yellows) ----
+    "editor.findMatchBackground": "{{alpha .Palette.UI.Accent 40}}",
+    "editor.findMatchHighlightBackground": "{{alpha .Palette.UI.Accent 20}}",
+    "editor.wordHighlightBackground": "{{alpha .Palette.UI.Accent 20}}",
+    "editor.wordHighlightStrongBackground": "{{alpha .Palette.UI.Accent 30}}",
+
+    // ---- Badges ----
+    "badge.background": "{{.Palette.UI.Accent}}",
+    "badge.foreground": "{{.Palette.BG}}",
+
+    // ---- Git Decorations ----
+    "gitDecoration.modifiedResourceForeground": "{{.Palette.UI.Info}}",
+    "gitDecoration.untrackedResourceForeground": "{{.Palette.UI.Success}}",
+    "gitDecoration.deletedResourceForeground": "{{.Palette.UI.Error}}",
+    "gitDecoration.conflictingResourceForeground": "{{.Palette.UI.Warning}}",
+    "gitDecoration.ignoredResourceForeground": "{{.Palette.UI.Dimmed}}",
+
+    // ---- Notifications ----
+    "notificationCenter.border": "{{.Palette.UI.Border}}",
+    "notifications.background": "{{darken .Palette.BG}}",
+    "notifications.foreground": "{{.Palette.FG}}",
+    "notifications.border": "{{.Palette.UI.Border}}",
+
+    // ---- Peek View ----
+    "peekView.border": "{{.Palette.UI.Accent}}",
+    "peekViewEditor.background": "{{darken .Palette.BG}}",
+    "peekViewResult.background": "{{darken .Palette.BG}}",
+    "peekViewTitle.background": "{{darken .Palette.BG}}",
+    "peekViewResult.matchHighlightBackground": "{{alpha .Palette.UI.Accent 30}}",
+
+    // ---- Diff Editor ----
+    "diffEditor.insertedTextBackground": "{{alpha .Palette.UI.Success 20}}",
+    "diffEditor.removedTextBackground": "{{alpha .Palette.UI.Error 20}}"
 }`))

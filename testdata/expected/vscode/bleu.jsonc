@@ -99,5 +99,39 @@
     // ---- Scrollbar ----
     "scrollbarSlider.background": "#2d4a6b3c",
     "scrollbarSlider.hoverBackground": "#2d4a6b78",
-    "scrollbarSlider.activeBackground": "#00d4ff"
+    "scrollbarSlider.activeBackground": "#00d4ff",
+
+    // ---- Editor Highlights (tame yellows) ----
+    "editor.findMatchBackground": "#00d4ff28",
+    "editor.findMatchHighlightBackground": "#00d4ff14",
+    "editor.wordHighlightBackground": "#00d4ff14",
+    "editor.wordHighlightStrongBackground": "#00d4ff1e",
+
+    // ---- Badges ----
+    "badge.background": "#00d4ff",
+    "badge.foreground": "#050a14",
+
+    // ---- Git Decorations ----
+    "gitDecoration.modifiedResourceForeground": "#87ceeb",
+    "gitDecoration.untrackedResourceForeground": "#99FFE4",
+    "gitDecoration.deletedResourceForeground": "#A167A5",
+    "gitDecoration.conflictingResourceForeground": "#FDBD85",
+    "gitDecoration.ignoredResourceForeground": "#708090",
+
+    // ---- Notifications ----
+    "notificationCenter.border": "#2d4a6b",
+    "notifications.background": "#03070e",
+    "notifications.foreground": "#e0ecf4",
+    "notifications.border": "#2d4a6b",
+
+    // ---- Peek View ----
+    "peekView.border": "#00d4ff",
+    "peekViewEditor.background": "#03070e",
+    "peekViewResult.background": "#03070e",
+    "peekViewTitle.background": "#03070e",
+    "peekViewResult.matchHighlightBackground": "#00d4ff1e",
+
+    // ---- Diff Editor ----
+    "diffEditor.insertedTextBackground": "#99FFE414",
+    "diffEditor.removedTextBackground": "#A167A514"
 }
