@@ -352,7 +352,7 @@ func switchClaude(t Theme, home string) (string, error) {
 // switchVscode merges terminal color customizations into VS Code / Cursor settings.json.
 // It reads the generated .jsonc file, strips comments, and sets each key under
 // "workbench.colorCustomizations" in the user's settings.json.
-// Supports both standard VS Code and Cursor settings paths.
+// Supports native Linux, macOS, and WSL (auto-detects Windows paths via wslpath).
 func switchVscode(t Theme, home string) (string, error) {
 	vscodeDir := filepath.Join(t.Dir, "vscode")
 	if !dirExists(vscodeDir) {
@@ -371,26 +371,34 @@ func switchVscode(t Theme, home string) (string, error) {
 		return "", fmt.Errorf("reading vscode theme: %w", err)
 	}
 
-	// Strip JSONC comments (lines starting with //).
-	var jsonLines []string
-	for _, line := range strings.Split(string(themeData), "\n") {
+	pairs := parseJSONCKeyValues(string(themeData))
+
+	settingsPath, err := findVscodeSettings(home)
+	if err != nil {
+		return "", err
+	}
+
+	if err := mergeVscodeSettings(settingsPath, pairs); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("settings.json -> %d terminal color keys (%s)", len(pairs), settingsPath), nil
+}
+
+// vscodeKV holds a parsed key-value pair from the generated JSONC.
+type vscodeKV struct {
+	key   string
+	value string
+}
+
+// parseJSONCKeyValues strips comments from JSONC and extracts flat key-value pairs.
+func parseJSONCKeyValues(data string) []vscodeKV {
+	var pairs []vscodeKV
+	for _, line := range strings.Split(data, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "//") {
 			continue
 		}
-		jsonLines = append(jsonLines, line)
-	}
-	cleanJSON := strings.Join(jsonLines, "\n")
-
-	// Parse the theme keys. We expect a flat JSON object.
-	// Extract key-value pairs by parsing the clean JSON.
-	type kv struct {
-		key   string
-		value string
-	}
-	var pairs []kv
-	for _, line := range strings.Split(cleanJSON, "\n") {
-		trimmed := strings.TrimSpace(line)
 		trimmed = strings.TrimSuffix(trimmed, ",")
 		if !strings.Contains(trimmed, ":") || trimmed == "{" || trimmed == "}" {
 			continue
@@ -401,77 +409,134 @@ func switchVscode(t Theme, home string) (string, error) {
 		}
 		key := strings.Trim(strings.TrimSpace(parts[0]), "\"")
 		value := strings.Trim(strings.TrimSpace(parts[1]), "\"")
-		pairs = append(pairs, kv{key, value})
+		pairs = append(pairs, vscodeKV{key, value})
 	}
+	return pairs
+}
 
-	// Try Cursor path first, then standard VS Code.
-	settingsPaths := []string{
+// findVscodeSettings locates the VS Code / Cursor settings.json.
+// Checks native Linux/macOS paths first, then detects WSL and probes
+// the Windows-side AppData paths via wslpath.
+func findVscodeSettings(home string) (string, error) {
+	// Native paths (Linux and macOS).
+	candidates := []string{
 		filepath.Join(home, ".config", "Cursor", "User", "settings.json"),
 		filepath.Join(home, ".config", "Code", "User", "settings.json"),
+		filepath.Join(home, "Library", "Application Support", "Cursor", "User", "settings.json"),
+		filepath.Join(home, "Library", "Application Support", "Code", "User", "settings.json"),
 	}
 
-	var settingsPath string
-	for _, p := range settingsPaths {
+	for _, p := range candidates {
 		if _, err := os.Stat(p); err == nil {
-			settingsPath = p
-			break
+			return p, nil
 		}
 	}
-	if settingsPath == "" {
-		// Default to Cursor path.
-		settingsPath = settingsPaths[0]
+
+	// WSL detection: check for Windows AppData paths.
+	if isWSL() {
+		appData, err := wslAppData()
+		if err == nil && appData != "" {
+			wslCandidates := []string{
+				filepath.Join(appData, "Cursor", "User", "settings.json"),
+				filepath.Join(appData, "Code", "User", "settings.json"),
+			}
+			for _, p := range wslCandidates {
+				if _, err := os.Stat(p); err == nil {
+					return p, nil
+				}
+			}
+		}
 	}
 
+	// Default to Cursor native path (will be created if needed).
+	return candidates[0], nil
+}
+
+// isWSL returns true if running under Windows Subsystem for Linux.
+func isWSL() bool {
+	data, err := os.ReadFile("/proc/version")
+	if err != nil {
+		return false
+	}
+	lower := strings.ToLower(string(data))
+	return strings.Contains(lower, "microsoft") || strings.Contains(lower, "wsl")
+}
+
+// wslAppData returns the WSL-mounted path to Windows %APPDATA%.
+// Uses cmd.exe to read the environment variable, then wslpath to convert.
+func wslAppData() (string, error) {
+	cmd := exec.Command("cmd.exe", "/C", "echo", "%APPDATA%")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	winPath := strings.TrimSpace(strings.ReplaceAll(string(out), "\r", ""))
+	if winPath == "" || winPath == "%APPDATA%" {
+		return "", fmt.Errorf("APPDATA not set")
+	}
+
+	wsl := exec.Command("wslpath", winPath)
+	wslOut, err := wsl.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(wslOut)), nil
+}
+
+// mergeVscodeSettings reads settings.json, sets each key under
+// workbench.colorCustomizations, and writes back atomically.
+func mergeVscodeSettings(settingsPath string, pairs []vscodeKV) error {
 	var origPerm os.FileMode = 0o644
 	raw, err := os.ReadFile(settingsPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return "", fmt.Errorf("reading settings.json: %w", err)
+			return fmt.Errorf("reading settings.json: %w", err)
 		}
 		raw = []byte("{}")
 	} else if info, err := os.Stat(settingsPath); err == nil {
 		origPerm = info.Mode().Perm()
 	}
 
-	// Set each theme key under workbench.colorCustomizations.
 	out := raw
 	for _, p := range pairs {
-		path := "workbench\\.colorCustomizations." + p.key
+		// Escape dots in the key so sjson treats "terminal.background" as a
+		// literal key, not a nested path. VS Code expects flat dotted keys.
+		escapedKey := strings.ReplaceAll(p.key, ".", "\\.")
+		path := "workbench\\.colorCustomizations." + escapedKey
 		out, err = sjson.SetBytes(out, path, p.value)
 		if err != nil {
-			return "", fmt.Errorf("setting %s: %w", p.key, err)
+			return fmt.Errorf("setting %s: %w", p.key, err)
 		}
 	}
 
 	// Atomic write.
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
-		return "", err
+		return err
 	}
 	tmpFile, err := os.CreateTemp(filepath.Dir(settingsPath), ".settings.json.tmp.*")
 	if err != nil {
-		return "", fmt.Errorf("creating temp file: %w", err)
+		return fmt.Errorf("creating temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
 
 	if _, err := tmpFile.Write(out); err != nil {
 		tmpFile.Close()
 		os.Remove(tmpPath)
-		return "", err
+		return err
 	}
 	if err := tmpFile.Close(); err != nil {
 		os.Remove(tmpPath)
-		return "", err
+		return err
 	}
 	if err := os.Chmod(tmpPath, origPerm); err != nil {
 		os.Remove(tmpPath)
-		return "", err
+		return err
 	}
 	if err := os.Rename(tmpPath, settingsPath); err != nil {
 		os.Remove(tmpPath)
-		return "", err
+		return err
 	}
-
-	return fmt.Sprintf("settings.json -> %d terminal color keys", len(pairs)), nil
+	return nil
 }
 
 // firstFile returns the name of the first regular file in dir, or "" if empty.
