@@ -31,6 +31,38 @@ color13 = "#8230a7"  # bright magenta
 color14 = "#6cbc67"  # bright cyan (muted green)
 color15 = "#8ff586"  # bright white (green — matches fg)
 
+# VS Code/Cursor override: fix ANSI slots that clash with editor UI.
+# Ghostty renders color7/color8 artistically (purple white, yellow brightBlack).
+# VS Code uses "white" for UI text and "brightBlack" for dimmed/borders —
+# those slots need sane values to avoid purple text and yellow borders.
+[adapters.vscode.palette]
+bg = "#142838"
+fg = "#8ff586"
+cursor = "#c4206f"
+selection_bg = "#094fb1"
+selection_fg = "#8ff586"
+color0 = "#142631"
+color1 = "#ff2320"
+color2 = "#3ba5ff"
+color3 = "#e9e75c"
+color4 = "#8ff586"
+color5 = "#781aa0"
+color6 = "#8ff586"
+color7 = "#a0b8c8"    # white → light blue-gray (was magenta #ba46b2)
+color8 = "#3a5570"    # bright black → muted blue-gray (was yellow #fff688)
+color9 = "#d4312e"
+color10 = "#8ff586"
+color11 = "#e9f06d"
+color12 = "#3c7dd2"
+color13 = "#8230a7"
+color14 = "#6cbc67"
+color15 = "#8ff586"
+
+[adapters.vscode.palette.ui]
+border = "#1e3a50"    # subtle blue border instead of yellow
+dimmed = "#5a7a8a"    # muted blue-gray for secondary text
+accent = "#8ff586"    # neon green accent (same as fg)
+
 [references]
 neovim = "cobalt-neon"
 claude = "dark"
