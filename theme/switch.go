@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -53,6 +54,7 @@ func Switch(t Theme, opts SwitchOpts) []SwitchResult {
 		{"neovim", switchNeovim},
 		{"claude", switchClaude},
 		{"vscode", switchVscode},
+		{"windows-terminal", switchWindowsTerminal},
 	}
 
 	var results []SwitchResult
@@ -383,6 +385,180 @@ func switchVscode(t Theme, home string) (string, error) {
 	}
 
 	return fmt.Sprintf("settings.json -> %d terminal color keys (%s)", len(pairs), settingsPath), nil
+}
+
+// switchWindowsTerminal adds or updates the color scheme in Windows Terminal settings.json
+// and sets it as the default colorScheme. Detects WSL and finds the Windows-side settings.
+func switchWindowsTerminal(t Theme, home string) (string, error) {
+	wtDir := filepath.Join(t.Dir, "windows-terminal")
+	if !dirExists(wtDir) {
+		return "", nil
+	}
+
+	srcFile, err := firstFile(wtDir)
+	if err != nil || srcFile == "" {
+		return "", err
+	}
+
+	// Read the generated scheme JSON.
+	installedFile := filepath.Join(home, ".config", "the-themer", "windows-terminal", srcFile)
+	schemeData, err := os.ReadFile(installedFile)
+	if err != nil {
+		return "", fmt.Errorf("reading windows-terminal theme: %w", err)
+	}
+
+	settingsPath, err := findWTSettings(home)
+	if err != nil {
+		return "", err
+	}
+	if settingsPath == "" {
+		return "Windows Terminal settings.json not found, skipped", nil
+	}
+
+	var origPerm os.FileMode = 0o644
+	raw, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return "", fmt.Errorf("reading WT settings.json: %w", err)
+	}
+	if info, err := os.Stat(settingsPath); err == nil {
+		origPerm = info.Mode().Perm()
+	}
+
+	// Strip JSON comments (Windows Terminal settings can have // comments).
+	cleanRaw := stripJSONComments(string(raw))
+
+	// Use gjson to find existing schemes and sjson to update.
+	themeName := t.Config.Theme.Name
+
+	// Remove existing scheme with same name if present.
+	schemes := gjson.Get(cleanRaw, "schemes")
+	newSchemes := "["
+	first := true
+	if schemes.Exists() && schemes.IsArray() {
+		schemes.ForEach(func(_, value gjson.Result) bool {
+			if value.Get("name").String() != themeName {
+				if !first {
+					newSchemes += ","
+				}
+				newSchemes += value.Raw
+				first = false
+			}
+			return true
+		})
+	}
+	// Append the new scheme.
+	if !first {
+		newSchemes += ","
+	}
+	newSchemes += strings.TrimSpace(string(schemeData))
+	newSchemes += "]"
+
+	// Set schemes array.
+	out, err := sjson.SetRawBytes([]byte(cleanRaw), "schemes", []byte(newSchemes))
+	if err != nil {
+		return "", fmt.Errorf("setting schemes: %w", err)
+	}
+
+	// Set default profile colorScheme.
+	out, err = sjson.SetBytes(out, "profiles.defaults.colorScheme", themeName)
+	if err != nil {
+		return "", fmt.Errorf("setting default colorScheme: %w", err)
+	}
+
+	// Atomic write.
+	tmpFile, err := os.CreateTemp(filepath.Dir(settingsPath), ".wt-settings.tmp.*")
+	if err != nil {
+		return "", fmt.Errorf("creating temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	if _, err := tmpFile.Write(out); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return "", err
+	}
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return "", err
+	}
+	if err := os.Chmod(tmpPath, origPerm); err != nil {
+		os.Remove(tmpPath)
+		return "", err
+	}
+	if err := os.Rename(tmpPath, settingsPath); err != nil {
+		os.Remove(tmpPath)
+		return "", err
+	}
+
+	return fmt.Sprintf("WT settings.json -> scheme %q set as default (%s)", themeName, settingsPath), nil
+}
+
+// findWTSettings locates Windows Terminal's settings.json.
+// On WSL, probes the Windows-side LocalAppData paths.
+func findWTSettings(home string) (string, error) {
+	// Native Linux path (unlikely but check anyway).
+	native := filepath.Join(home, ".config", "windows-terminal", "settings.json")
+	if _, err := os.Stat(native); err == nil {
+		return native, nil
+	}
+
+	if !isWSL() {
+		return "", nil
+	}
+
+	localAppData, err := wslLocalAppData()
+	if err != nil {
+		return "", nil // Not an error — just no WT to configure.
+	}
+
+	candidates := []string{
+		// Standard Windows Terminal (Microsoft Store).
+		filepath.Join(localAppData, "Packages", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", "LocalState", "settings.json"),
+		// Windows Terminal Preview.
+		filepath.Join(localAppData, "Packages", "Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe", "LocalState", "settings.json"),
+		// Portable / non-store version.
+		filepath.Join(localAppData, "Microsoft", "Windows Terminal", "settings.json"),
+	}
+
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	return "", nil
+}
+
+// wslLocalAppData returns the WSL-mounted path to Windows %LOCALAPPDATA%.
+func wslLocalAppData() (string, error) {
+	cmd := exec.Command("cmd.exe", "/C", "echo", "%LOCALAPPDATA%")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	winPath := strings.TrimSpace(strings.ReplaceAll(string(out), "\r", ""))
+	if winPath == "" || winPath == "%LOCALAPPDATA%" {
+		return "", fmt.Errorf("LOCALAPPDATA not set")
+	}
+
+	wsl := exec.Command("wslpath", winPath)
+	wslOut, err := wsl.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(wslOut)), nil
+}
+
+// stripJSONComments removes // line comments from JSON (Windows Terminal uses them).
+func stripJSONComments(s string) string {
+	var result []string
+	for _, line := range strings.Split(s, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		result = append(result, line)
+	}
+	return strings.Join(result, "\n")
 }
 
 // vscodeKV holds a parsed key-value pair from the generated JSONC.

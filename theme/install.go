@@ -52,6 +52,7 @@ func Install(t Theme, opts InstallOpts) []InstallResult {
 		{"eza", installEza},
 		{"gh-dash", installGhDash},
 		{"vscode", installVscode},
+		{"windows-terminal", installWindowsTerminal},
 	}
 
 	var results []InstallResult
@@ -194,6 +195,13 @@ func installEza(t Theme, home string) (string, error) {
 func installGhDash(t Theme, home string) (string, error) {
 	srcDir := filepath.Join(t.Dir, "gh-dash")
 	destDir := filepath.Join(home, ".config", "the-themer", "gh-dash")
+	return copyDirContents(srcDir, destDir)
+}
+
+// installWindowsTerminal copies the Windows Terminal color scheme to ~/.config/the-themer/windows-terminal/.
+func installWindowsTerminal(t Theme, home string) (string, error) {
+	srcDir := filepath.Join(t.Dir, "windows-terminal")
+	destDir := filepath.Join(home, ".config", "the-themer", "windows-terminal")
 	return copyDirContents(srcDir, destDir)
 }
 

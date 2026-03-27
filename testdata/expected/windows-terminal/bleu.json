@@ -1,0 +1,23 @@
+{
+    "name": "bleu",
+    "background": "#050a14",
+    "foreground": "#e0ecf4",
+    "cursorColor": "#5588cc",
+    "selectionBackground": "#2d4a6b",
+    "black": "#050a14",
+    "red": "#A167A5",
+    "green": "#99FFE4",
+    "yellow": "#FDBD85",
+    "blue": "#5588cc",
+    "purple": "#87ceeb",
+    "cyan": "#6bb6d6",
+    "white": "#e0ecf4",
+    "brightBlack": "#2d4a6b",
+    "brightRed": "#A167A5",
+    "brightGreen": "#99FFE4",
+    "brightYellow": "#FDBD85",
+    "brightBlue": "#5588cc",
+    "brightPurple": "#87ceeb",
+    "brightCyan": "#6bb6d6",
+    "brightWhite": "#fefefe"
+}
