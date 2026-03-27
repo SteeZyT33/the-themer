@@ -52,6 +52,7 @@ func Switch(t Theme, opts SwitchOpts) []SwitchResult {
 		{"gh-dash", switchGhDash},
 		{"neovim", switchNeovim},
 		{"claude", switchClaude},
+		{"vscode", switchVscode},
 	}
 
 	var results []SwitchResult
@@ -346,6 +347,131 @@ func switchClaude(t Theme, home string) (string, error) {
 		return "claude.json -> removed theme key (dark is default)", nil
 	}
 	return fmt.Sprintf("claude.json -> %s", value), nil
+}
+
+// switchVscode merges terminal color customizations into VS Code / Cursor settings.json.
+// It reads the generated .jsonc file, strips comments, and sets each key under
+// "workbench.colorCustomizations" in the user's settings.json.
+// Supports both standard VS Code and Cursor settings paths.
+func switchVscode(t Theme, home string) (string, error) {
+	vscodeDir := filepath.Join(t.Dir, "vscode")
+	if !dirExists(vscodeDir) {
+		return "", nil
+	}
+
+	srcFile, err := firstFile(vscodeDir)
+	if err != nil || srcFile == "" {
+		return "", err
+	}
+
+	// Read the generated theme JSONC.
+	installedFile := filepath.Join(home, ".config", "the-themer", "vscode", srcFile)
+	themeData, err := os.ReadFile(installedFile)
+	if err != nil {
+		return "", fmt.Errorf("reading vscode theme: %w", err)
+	}
+
+	// Strip JSONC comments (lines starting with //).
+	var jsonLines []string
+	for _, line := range strings.Split(string(themeData), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		jsonLines = append(jsonLines, line)
+	}
+	cleanJSON := strings.Join(jsonLines, "\n")
+
+	// Parse the theme keys. We expect a flat JSON object.
+	// Extract key-value pairs by parsing the clean JSON.
+	type kv struct {
+		key   string
+		value string
+	}
+	var pairs []kv
+	for _, line := range strings.Split(cleanJSON, "\n") {
+		trimmed := strings.TrimSpace(line)
+		trimmed = strings.TrimSuffix(trimmed, ",")
+		if !strings.Contains(trimmed, ":") || trimmed == "{" || trimmed == "}" {
+			continue
+		}
+		parts := strings.SplitN(trimmed, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.Trim(strings.TrimSpace(parts[0]), "\"")
+		value := strings.Trim(strings.TrimSpace(parts[1]), "\"")
+		pairs = append(pairs, kv{key, value})
+	}
+
+	// Try Cursor path first, then standard VS Code.
+	settingsPaths := []string{
+		filepath.Join(home, ".config", "Cursor", "User", "settings.json"),
+		filepath.Join(home, ".config", "Code", "User", "settings.json"),
+	}
+
+	var settingsPath string
+	for _, p := range settingsPaths {
+		if _, err := os.Stat(p); err == nil {
+			settingsPath = p
+			break
+		}
+	}
+	if settingsPath == "" {
+		// Default to Cursor path.
+		settingsPath = settingsPaths[0]
+	}
+
+	var origPerm os.FileMode = 0o644
+	raw, err := os.ReadFile(settingsPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("reading settings.json: %w", err)
+		}
+		raw = []byte("{}")
+	} else if info, err := os.Stat(settingsPath); err == nil {
+		origPerm = info.Mode().Perm()
+	}
+
+	// Set each theme key under workbench.colorCustomizations.
+	out := raw
+	for _, p := range pairs {
+		path := "workbench\\.colorCustomizations." + p.key
+		out, err = sjson.SetBytes(out, path, p.value)
+		if err != nil {
+			return "", fmt.Errorf("setting %s: %w", p.key, err)
+		}
+	}
+
+	// Atomic write.
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		return "", err
+	}
+	tmpFile, err := os.CreateTemp(filepath.Dir(settingsPath), ".settings.json.tmp.*")
+	if err != nil {
+		return "", fmt.Errorf("creating temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	if _, err := tmpFile.Write(out); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return "", err
+	}
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return "", err
+	}
+	if err := os.Chmod(tmpPath, origPerm); err != nil {
+		os.Remove(tmpPath)
+		return "", err
+	}
+	if err := os.Rename(tmpPath, settingsPath); err != nil {
+		os.Remove(tmpPath)
+		return "", err
+	}
+
+	return fmt.Sprintf("settings.json -> %d terminal color keys", len(pairs)), nil
 }
 
 // firstFile returns the name of the first regular file in dir, or "" if empty.

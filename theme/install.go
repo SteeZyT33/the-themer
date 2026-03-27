@@ -51,6 +51,7 @@ func Install(t Theme, opts InstallOpts) []InstallResult {
 		{"starship", installStarship},
 		{"eza", installEza},
 		{"gh-dash", installGhDash},
+		{"vscode", installVscode},
 	}
 
 	var results []InstallResult
@@ -193,6 +194,13 @@ func installEza(t Theme, home string) (string, error) {
 func installGhDash(t Theme, home string) (string, error) {
 	srcDir := filepath.Join(t.Dir, "gh-dash")
 	destDir := filepath.Join(home, ".config", "the-themer", "gh-dash")
+	return copyDirContents(srcDir, destDir)
+}
+
+// installVscode copies the VS Code / Cursor terminal theme to ~/.config/the-themer/vscode/.
+func installVscode(t Theme, home string) (string, error) {
+	srcDir := filepath.Join(t.Dir, "vscode")
+	destDir := filepath.Join(home, ".config", "the-themer", "vscode")
 	return copyDirContents(srcDir, destDir)
 }
 
