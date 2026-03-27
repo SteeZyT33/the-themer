@@ -146,7 +146,7 @@ var vscodeTmpl = template.Must(template.New("vscode").Funcs(funcMap).Parse(
     "tab.activeForeground": "{{.Palette.UI.Accent}}",
     "tab.inactiveBackground": "{{darken .Palette.BG}}",
     "tab.inactiveForeground": "{{.Palette.UI.Dimmed}}",
-    "tab.activeBorderTop": "{{.Palette.UI.Accent}}",
+    "tab.activeBorderTop": "{{.Palette.UI.Warning}}",
     "tab.border": "{{.Palette.UI.Border}}",
     "editorGroupHeader.tabsBackground": "{{darken .Palette.BG}}",
 

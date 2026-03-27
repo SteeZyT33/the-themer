@@ -56,7 +56,7 @@
     "tab.activeForeground": "#00d4ff",
     "tab.inactiveBackground": "#03070e",
     "tab.inactiveForeground": "#708090",
-    "tab.activeBorderTop": "#00d4ff",
+    "tab.activeBorderTop": "#FDBD85",
     "tab.border": "#2d4a6b",
     "editorGroupHeader.tabsBackground": "#03070e",
 

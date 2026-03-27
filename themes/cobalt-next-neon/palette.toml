@@ -37,10 +37,10 @@ color15 = "#8ff586"  # bright white (green — matches fg)
 # those slots need sane values to avoid purple text and yellow borders.
 [adapters.vscode.palette]
 bg = "#142838"
-fg = "#e0ecf4"        # light blue-white default text (was neon green #8ff586)
+fg = "#b0d0c8"        # light blue-green tint (between green #8ff586 and white #e0ecf4)
 cursor = "#c4206f"
 selection_bg = "#094fb1"
-selection_fg = "#e0ecf4"
+selection_fg = "#b0d0c8"
 color0 = "#142631"
 color1 = "#ff2320"    # red
 color2 = "#3ba5ff"    # green slot (blue-tinted, unchanged)
@@ -56,12 +56,13 @@ color11 = "#e9f06d"   # bright yellow
 color12 = "#3c7dd2"   # bright blue
 color13 = "#8230a7"   # bright magenta
 color14 = "#6cbc67"   # bright cyan (muted green)
-color15 = "#e0ecf4"   # bright white → matches fg (was green #8ff586)
+color15 = "#b0d0c8"   # bright white → matches fg
 
 [adapters.vscode.palette.ui]
-border = "#1e3a50"    # subtle blue border instead of yellow
+border = "#1e3a50"    # subtle blue for most borders
 dimmed = "#5a7a8a"    # muted blue-gray for secondary text
 accent = "#8ff586"    # neon green accent for highlights/active elements
+warning = "#e9e75c"   # yellow — used for select trim accents
 
 [references]
 neovim = "cobalt-neon"
